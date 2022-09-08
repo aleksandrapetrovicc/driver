@@ -18,10 +18,8 @@
 #include <linux/fs.h>
 #include <linux/device.h>
 #include <linux/cdev.h>
-#include <linux/uaccess.h>
-#include <linux/dma-mapping.h>  // dma access
-#include <linux/mm.h>  // dma access
 
+#include <linux/uaccess.h>
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR ("g06-2022");
@@ -30,9 +28,7 @@ MODULE_ALIAS("custom:seam");
 #define DEVICE_NAME "seam"
 #define DRIVER_NAME "seam_driver"
 
-// ---------------------------------
 // INFO
-// ---------------------------------
 
 struct seam_info {
 	unsigned long mem_start;
@@ -71,9 +67,9 @@ static struct device *my_device;
 static struct cdev *my_cdev;
 
 MODULE_DEVICE_TABLE(of, seam_of_match);
-// ---------------------------------
+
 // FUNCTIONS
-// ---------------------------------
+
 static int seam_probe(struct platform_device *pdev);
 static int seam_remove(struct platform_device *pdev);
 int seam_open(struct inode *pinode, struct file *pfile);
@@ -85,28 +81,90 @@ static int __init seam_init(void);
 static void __exit seam_exit(void);
 
 //PROBE
+static int seam_probe(struct platform_device *pdev) {
+  struct resource *r_mem;
+  int rc = 0;
 
+  printk(KERN_INFO "Probing\n");
 
-//REMOVE
+  r_mem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+  if (!r_mem) {
+    printk(KERN_ALERT "invalid address\n");
+    return -ENODEV;
+  }
+  else
+    printk(KERN_INFO "platform get resource success\n");
+  vp = (struct seam_info *) kmalloc(sizeof(struct seam_info), GFP_KERNEL);
+  if (!vp) {
+    printk(KERN_ALERT "Cound not allocate seam device\n");
+    return -ENOMEM;
+  }
+  else
+  {
+    printk(KERN_INFO "allocation of space for vp was a success\n");
+  }
+  vp->mem_start = r_mem->start;
+  vp->mem_end = r_mem->end;
+  
 
+  if (!request_mem_region(vp->mem_start,
+                          vp->mem_end - vp->mem_start + 1, DRIVER_NAME)) {
+    printk(KERN_ALERT "Couldn't lock memory region at %p\n",(void *)vp->mem_start);
+    rc = -EBUSY;
+    goto error1;
+  }
+  else {
+    printk(KERN_INFO "seam_init: Successfully allocated memory region for seam\n");
+  }
+  
+   //Map Physical address to Virtual address
+   
+  vp->base_addr = ioremap(vp->mem_start, vp->mem_end - vp->mem_start + 1);
+  if (!vp->base_addr) {
+    printk(KERN_ALERT "seam: Could not allocate iomem\n");
+    rc = -EIO;
+    goto error2;
+  }
+  else
+    printk(KERN_INFO "ioremap was a success\n");
+  
+  printk("Probing done.");
+error2:
+  release_mem_region(vp->mem_start, vp->mem_end - vp->mem_start + 1);
+error1:
+  return rc;
+}
 
-///to do
+//REMOVE****
 
-// ------------------------------------------
+static int seam_remove(struct platform_device *pdev){
+    iounmap(vp->base_addr);
+    iowrite32(0, vp->base_addr);
+		release_mem_region(vp->mem_start, vp->mem_end - vp->mem_start + 1);
+		kfree(vp);
+		printk(KERN_WARNING "seam_remove: seam driver removed\n");
+		
+  return 0;
+}
+
 // OPEN
-// ------------------------------------------
+
 int seam_open(struct inode *pinode, struct file *pfile) {
 	printk(KERN_INFO "Succesfully opened SEAM\n");
 	return 0;
 }
 
-// ------------------------------------------
 // CLOSE
-// ------------------------------------------
+
 int seam_close(struct inode *pinode, struct file *pfile) {
 	printk(KERN_INFO "Succesfully closed SEAM\n");
 	return 0;
 }
+
+//READ AND WRITE FUNCTIONS*********************
+
+
+
 
 //INIT FUNCTION
 static int __init seam_init(void)

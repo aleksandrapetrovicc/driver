@@ -65,7 +65,7 @@ static struct platform_driver seam_driver = {
 };
 
 static struct seam_info *vp = NULL;   /////do i need only 1
-static dev_t dev_id;
+static dev_t my_dev_id;
 static struct class *my_class;
 static struct device *my_device;
 static struct cdev *my_cdev;
@@ -108,14 +108,65 @@ int seam_close(struct inode *pinode, struct file *pfile) {
 	return 0;
 }
 
+//INIT FUNCTION
+static int __init seam_init(void)
+{
+	int ret = 0;printk(KERN_INFO "seam_init: Initialize Module \"%s\"\n", DEVICE_NAME);
+	ret = alloc_chrdev_region(&my_dev_id, 0, 1, "seam_region");
+  
+  if (ret)
+  {
+    printk(KERN_ALERT "<1>Failed CHRDEV!.\n");
+    return -1;
+  }
+  printk(KERN_INFO "Succ CHRDEV!.\n");
+  my_class = class_create(THIS_MODULE, "seam_driver");
+  
+  if (my_class == NULL)
+  {
+	printk(KERN_ALERT "<1>Failed class create!.\n");
+    goto fail_0;
+  }
+  printk(KERN_INFO "Succ class chardev1 create!.\n");
+  my_device = device_create(my_class, NULL, MKDEV(MAJOR(my_dev_id),0), NULL, "matmul");  //what is matmul
+  
+  if (my_device == NULL)
+  {
+    goto fail_1;
+  }
+
+  printk(KERN_INFO "Device created.\n");
+  my_cdev = cdev_alloc();	
+  my_cdev->ops = &seam_operations;
+  my_cdev->owner = THIS_MODULE;
+  ret = cdev_add(my_cdev, my_dev_id, 1);
+  
+  if (ret)
+  {
+    printk(KERN_ERR "seam_init: Failed to add cdev\n");
+    goto fail_2;
+  }
+  printk(KERN_INFO "seam Device init.\n");
+
+  return platform_driver_register(&seam_driver);
+
+  fail_2:
+  device_destroy(my_class, MKDEV(MAJOR(my_dev_id),0));
+  fail_1:
+  class_destroy(my_class);
+  fail_0:
+  unregister_chrdev_region(my_dev_id, 1);
+  return -1;
+}
+
 //EXIT FUNCTION
 static void __exit seam_exit(void)  		
 {
   platform_driver_unregister(&seam_driver);
   cdev_del(&my_cdev);
-  device_destroy(cl, MKDEV(MAJOR(dev_id),0));
+  device_destroy(cl, MKDEV(MAJOR(my_dev_id),0));
   class_destroy(my_class);
-  unregister_chrdev_region(dev_id, 1);
+  unregister_chrdev_region(my_dev_id, 1);
   printk(KERN_INFO "seam_exit: Exit Device Module \"%s\".\n", DEVICE_NAME);
 }
 

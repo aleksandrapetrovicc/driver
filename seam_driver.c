@@ -87,7 +87,7 @@ static void __exit seam_exit(void);
 //PROBE
 
 
-
+//REMOVE
 
 
 ///to do
@@ -120,7 +120,7 @@ static int __init seam_init(void)
     return -1;
   }
   printk(KERN_INFO "Succ CHRDEV!.\n");
-  my_class = class_create(THIS_MODULE, "seam_driver");
+  my_class = class_create(THIS_MODULE, "seam_class");
   
   if (my_class == NULL)
   {
@@ -128,7 +128,7 @@ static int __init seam_init(void)
     goto fail_0;
   }
   printk(KERN_INFO "Succ class chardev1 create!.\n");
-  my_device = device_create(my_class, NULL, MKDEV(MAJOR(my_dev_id),0), NULL, "matmul");  //what is matmul
+  my_device = device_create(my_class, NULL, MKDEV(MAJOR(my_dev_id),0), NULL, "seam");  
   
   if (my_device == NULL)
   {
@@ -151,11 +151,11 @@ static int __init seam_init(void)
   return platform_driver_register(&seam_driver);
 
   fail_2:
-  device_destroy(my_class, MKDEV(MAJOR(my_dev_id),0));
+	device_destroy(my_class, MKDEV(MAJOR(my_dev_id),0));
   fail_1:
-  class_destroy(my_class);
+	class_destroy(my_class);
   fail_0:
-  unregister_chrdev_region(my_dev_id, 1);
+	unregister_chrdev_region(my_dev_id, 1);
   return -1;
 }
 

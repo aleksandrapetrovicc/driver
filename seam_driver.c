@@ -20,6 +20,10 @@
 #include <linux/cdev.h>
 
 #include <linux/uaccess.h>
+#include <linux/delay.h>
+
+#include <linux/dma-mapping.h> 
+#include <linux/mm.h>
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR ("g06-2022");
@@ -222,7 +226,7 @@ static void __exit seam_exit(void)
 {
   platform_driver_unregister(&seam_driver);
   cdev_del(&my_cdev);
-  device_destroy(cl, MKDEV(MAJOR(my_dev_id),0));
+  device_destroy(my_class, MKDEV(MAJOR(my_dev_id),0));
   class_destroy(my_class);
   unregister_chrdev_region(my_dev_id, 1);
   printk(KERN_INFO "seam_exit: Exit Device Module \"%s\".\n", DEVICE_NAME);

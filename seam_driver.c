@@ -55,13 +55,14 @@ struct file_operations seam_operations =
 static struct of_device_id seam_of_match[] = 
 {
 	{ .compatible = "xlnx,seam", },
-	{ .compatible = "xlnx,bram", },  ////////////check this
+	{ .compatible = "xlnx,dma", },  ////////////check this
 	{ /* end of list */ },
 };
 
 static struct platform_driver seam_driver = 
 {
-	.driver = {
+	.driver = 
+  {
 		.name = DRIVER_NAME,
 		.owner = THIS_MODULE,
 		.of_match_table	= seam_of_match,
@@ -105,7 +106,8 @@ static int seam_probe(struct platform_device *pdev)
   printk(KERN_INFO "Probing\n");
 
   r_mem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-  if (!r_mem) {
+  if (!r_mem) 
+  {
     printk(KERN_ALERT "invalid address\n");
     return -ENODEV;
   }
@@ -134,23 +136,23 @@ static int seam_probe(struct platform_device *pdev)
           rc = -EIO;
           goto error2;
         }
-      ++device_fsm;
-      printk(KERN_INFO "[PROBE]: Finished probing seam.\n");
-      return 0;
-      error2:
-      release_mem_region(seam->mem_start, seam->mem_end-sem->mem_start+1);
-      error1:
-      return rc;
+        ++device_fsm;
+        printk(KERN_INFO "[PROBE]: Finished probing seam.\n");
+        return 0;
+        error2:
+        release_mem_region(seam->mem_start, seam->mem_end-sem->mem_start+1);
+        error1:
+        return rc;
       break;
       case 1: //device dma
-      dma = (struct seam_info *) kmalloc(sizeof(struct seam_info), GFP_KERNEL);
-      if(!dma)
-      {
+        dma = (struct seam_info *) kmalloc(sizeof(struct seam_info), GFP_KERNEL);
+        if(!dma)
+       {
         printk(KERN_ALERT "Cound not allocate dma device\n");
           return -ENOMEM;
-      }
-      dma->mem_start = r_mem->mem_start;
-      dma->mem_end = r_mem->mem_end;
+       }
+       dma->mem_start = r_mem->mem_start;
+       dma->mem_end = r_mem->mem_end;
        if(!request_mem_region(dma->mem_start, dma->mem_end - dma->mem_start+1, DRIVER_NAME))
         {
           printk(KERN_ALERT "Couldn't lock memory region at %p\n",(void *)dma->mem_start);
@@ -164,12 +166,12 @@ static int seam_probe(struct platform_device *pdev)
           rc = -EIO;
           goto error4;
         }
-      ++device_fsm;
-      printk(KERN_INFO "[PROBE]: Finished probing dma.\n");
-      return 0;
-      error4:
+        ++device_fsm;
+        printk(KERN_INFO "[PROBE]: Finished probing dma.\n");
+        return 0;
+        error4:
         release_mem_region(dma->mem_start, dma->mem_end - dma->mem_start + 1);
-      error3:
+        error3:
         return rc;
       break;
       default:
@@ -187,18 +189,18 @@ static int seam_remove(struct platform_device *pdev)
     switch()
     {
       case 0: //seam device
-      printk(KERN_ALERT "seam device platform driver removed\n");
-      iowrite32(0, seam->base_addr);
-      iounmap(seam->base_addr);
-      release_mem_region(seam->mem_start, seam->mem_end - seam->mem_start + 1);
-      kfree(seam);
+        printk(KERN_ALERT "seam device platform driver removed\n");
+        iowrite32(0, seam->base_addr);
+        iounmap(seam->base_addr);
+        release_mem_region(seam->mem_start, seam->mem_end - seam->mem_start + 1);
+        kfree(seam);
       break;
       case 1: //dma device
-      printk(KERN_ALERT "dma platform driver removed\n");
-      iowrite32(0, dma->base_addr);
-      iounmap(dma->base_addr);
-      release_mem_region(dma->mem_start, dma->mem_end - dma->mem_start + 1);
-      kfree(dma);
+        printk(KERN_ALERT "dma platform driver removed\n");
+        iowrite32(0, dma->base_addr);
+        iounmap(dma->base_addr);
+        release_mem_region(dma->mem_start, dma->mem_end - dma->mem_start + 1);
+        kfree(dma);
       break;
       default:
       printk(KERN_INFO "[REMOVE] Device FSM in illegal state. \n");
@@ -225,18 +227,59 @@ int seam_close(struct inode *pinode, struct file *pfile)
 }
 
 //READ AND WRITE FUNCTIONS*********************
+//THIS MIGH BE CHANGED
+#define BUFF_SIZE 1000
+int end_read = 0;
+int i = 0;
+int j = 0;
 
+ssize_t seam_read(struct file *pfile, char __user *buffer, size_t length, loff_t *offset)
+{
+  char buf[BUFF_SIZE];
+  long int len = 0;
+  u32 val;
+  int minor = MINOR(pfile->f_inode->i_rdev);
+
+  printk(KERN_INFO "i = %d, len = %ld, end_read = %d\n", i, len, end_read);
+  if (end_read == 1)
+    {
+      end_read = 0;
+      return 0;
+    }
+
+    switch(minor)
+    {
+      case 0: //device seam
+
+        //*******************************/
+        //////////for our project
+        //*******************************/
+        if (copy_to_user(buffer, buf, len))
+        return -EFAULT;
+        end_read = 1;
+      break;
+      case 1: //device dma
+      break;
+      default:
+        printk(KERN_ERR "[READ] Invalid minor. \n");
+        end_read = 1;
+    }
+    return len;
+}
+
+
+ssize_t seam_write(struct file *pfile, const char __user *buffer, size_t length, loff_t *offset)
+{
+
+}
 
 
 
 //INIT FUNCTION
 static int __init seam_init(void)
 {
-	int ret = 0;
   printk(KERN_INFO "seam_init: Initialize Module \"%s\"\n", DEVICE_NAME);
-	ret = alloc_chrdev_region(&my_dev_id, 0, 1, "seam_region");   ////is 1 here ok????
-  
-  if (ret)
+	if(alloc_chrdev_region(&my_dev_id, 0, 2, "seam_region"))   ////is 2 here ok????
   {
     printk(KERN_ALERT "<1>Failed CHRDEV!.\n");
     return -1;
@@ -249,7 +292,7 @@ static int __init seam_init(void)
 	  printk(KERN_ALERT "<1>Failed class create!.\n");
     goto fail_0;
   }
-  printk(KERN_INFO "Succ class chardev1 create!.\n");
+  printk(KERN_INFO "Class created!.\n");
     
   
   if (device_create(my_class, NULL, MKDEV(MAJOR(my_dev_id),0), NULL, "xlnx, seam") == NULL)
@@ -259,10 +302,11 @@ static int __init seam_init(void)
   }
   printk(KERN_INFO "Device created - seam.\n");
 
-if (device_create(my_class, NULL, MKDEV(MAJOR(my_dev_id),1), NULL, "xlnx,dma") == NULL) {
-     printk(KERN_ERR "failed to create device dma\n");
-     goto fail_2;
-   }
+  if (device_create(my_class, NULL, MKDEV(MAJOR(my_dev_id),1), NULL, "xlnx,dma") == NULL)
+  {
+   printk(KERN_ERR "failed to create device dma\n");
+       goto fail_2;
+  }
    printk(KERN_INFO "device created - dma\n");
 
   my_cdev = cdev_alloc();	
@@ -270,7 +314,7 @@ if (device_create(my_class, NULL, MKDEV(MAJOR(my_dev_id),1), NULL, "xlnx,dma") =
   my_cdev->owner = THIS_MODULE;
   ret = cdev_add(my_cdev, my_dev_id, 1);
   
-  if (ret)
+  if (cdev_add(my_cdev, my_dev_id, 2) == -1)
   {
     printk(KERN_ERR "seam_init: Failed to add cdev\n");
     goto fail_3;

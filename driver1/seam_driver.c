@@ -73,13 +73,13 @@ static struct platform_driver seam_driver =
 };
 
 static struct seam_info *seam = NULL;   
+static struct seam_info *dma = NULL;
 static dev_t my_dev_id;
 static struct class *my_class;
 static struct device *my_device;
 static struct cdev *my_cdev;
-static int int_cnt;
 
-dma_addr_t tx_phy_buffer;
+dma_addr_t tx_phy_buffer; ////is this needed
 u32 *tx_vir_buffer;
 
 MODULE_DEVICE_TABLE(of, seam_of_match);
@@ -100,6 +100,9 @@ static irqreturn_t dma_isr(int irq,void*dev_id);
 int dma_init(void __iomem *base_address);
 u32 dma_simple_write(dma_addr_t TxBufferPtr, u32 max_pkt_len, void __iomem *base_address); // helper function, defined later
 
+
+int device_fsm = 0;
+
 //PROBE
 static int seam_probe(struct platform_device *pdev) 
 {
@@ -111,85 +114,104 @@ static int seam_probe(struct platform_device *pdev)
   r_mem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
   if (!r_mem) 
   {
-    printk(KERN_ALERT "Invalid address\n");
+    printk(KERN_ALERT "invalid address\n");
     return -ENODEV;
   }
-  else
-  {
-    printk(KERN_INFO "Starting probing.\n");
-  }
-  seam = (struct seam_info *) kmalloc(sizeof(struct seam_info), GFP_KERNEL);
-  if (!seam) 
-  {
-    printk(KERN_ALERT "Cound not allocate seam device\n");
-    return -ENOMEM;
-  }
-  else
-  {
-    printk("Sucessful allocation.\n");
-  }
-  seam->mem_start = r_mem->start;
-  seam->mem_end = r_mem->end;
-
-  if (!request_mem_region(seam->mem_start, seam->mem_end - seam->mem_start + 1, DRIVER_NAME))
-  {
-    printk(KERN_ALERT "Couldn't lock memory region at %p\n",(void *)seam->mem_start);
-    rc = -EBUSY;
-    goto error1;
-  }
-  else 
-  {
-    printk(KERN_INFO "Successfully allocated memory region for seam\n");
-  }
-
-  //mapping physical addresses to virtual addresses
-  seam->base_addr = ioremap(seam->mem_start, seam->mem_end - seam->mem_start + 1);
-  if (!seam->base_addr)
-  {
-    printk(KERN_ALERT "Could not allocate iomem\n");
-    rc = -EIO;
-    goto error2;
-  }
-  else
-  {
-    printk(KERN_INFO "Ioremap was a success\n");
-  }
-
-  seam->irq_num = platform_get_irq(pdev, 0);
-  printk("irq number is: %d\n", seam->irq_num);
-  
-  if (request_irq(seam->irq_num, dma_isr, 0, DEVICE_NAME, NULL))
-  {
-    printk(KERN_ERR "Cannot register IRQ %d\n", seam->irq_num);
-    return -EIO;
-  }
-  else 
-  {
-    printk(KERN_INFO "Registered IRQ %d\n", seam->irq_num);
-  }
-
-  //dma init
-  dma_init(seam->base_addr);
-  dma_simple_write(tx_phy_buffer, MAX_PKT_LEN, seam->base_addr);
-  
-  printk("probing done");
-  error2:
-  release_mem_region(seam->mem_start, seam->mem_end - seam->mem_start + 1);
-  error1:
-  return rc;
+  printk(KERN_INFO "Starting probing.\n");
+  switch (device_fsm)
+    {
+      case 0: //device seam_carving
+        seam = (struct seam_info *) kmalloc(sizeof(struct seam_info), GFP_KERNEL);
+        if (!seam)
+        {
+          printk(KERN_ALERT "Cound not allocate seam device\n");
+          return -ENOMEM;
+        }
+        seam->mem_start = r_mem->start;
+        seam->mem_end = r_mem->end;
+        if(!request_mem_region(seam->mem_start, seam->mem_end - seam->mem_start+1, DRIVER_NAME))
+        {
+          printk(KERN_ALERT "Couldn't lock memory region at %p\n",(void *)seam->mem_start);
+          rc = -EBUSY;
+          goto error1;
+        }
+        seam->base_addr = ioremap(seam->mem_start, sema->mem_end-seam->mem_start+1);
+        if (!seam->base_addr)
+        {
+          printk(KERN_ALERT "[PROBE]: Could not allocate seam iomem\n");
+          rc = -EIO;
+          goto error2;
+        }
+        ++device_fsm;
+        printk(KERN_INFO "[PROBE]: Finished probing seam.\n");
+        return 0;
+        error2:
+        release_mem_region(seam->mem_start, seam->mem_end-sem->mem_start+1);
+        error1:
+        return rc;
+      break;
+      case 1: //device dma
+        dma = (struct seam_info *) kmalloc(sizeof(struct seam_info), GFP_KERNEL);
+        if(!dma)
+       {
+        printk(KERN_ALERT "Cound not allocate dma device\n");
+          return -ENOMEM;
+       }
+       dma->mem_start = r_mem->mem_start;
+       dma->mem_end = r_mem->mem_end;
+       if(!request_mem_region(dma->mem_start, dma->mem_end - dma->mem_start+1, DRIVER_NAME))
+        {
+          printk(KERN_ALERT "Couldn't lock memory region at %p\n",(void *)dma->mem_start);
+          rc = -EBUSY;
+          goto error3;
+        }
+        dma->base_addr = ioremap(dma->mem_start. dma->mem_end-dma->mem_start+1);
+         if (!dma->base_addr)
+        {
+          printk(KERN_ALERT "[PROBE]: Could not allocate dma iomem\n");
+          rc = -EIO;
+          goto error4;
+        }
+        ++device_fsm;
+        printk(KERN_INFO "[PROBE]: Finished probing dma.\n");
+        return 0;
+        error4:
+        release_mem_region(dma->mem_start, dma->mem_end - dma->mem_start + 1);
+        error3:
+        return rc;
+      break;
+      default:
+      printk(KERN_INFO "[PROBE] Device FSM in illegal state. \n");
+      return -1;
+    }
+  printk(KERN_INFO "Succesfully probed driver\n");
+  return 0;
 }
 
 //REMOVE
 
 static int seam_remove(struct platform_device *pdev)
 {
-  u32 reset; //do i need first two lines
-  reset = 0x00000004;
-  iowrite32(reset, seam->base_addr); //reset or 0
-  iounmap(seam->base_addr);
-  free_irq(seam->irq_num, NULL);
-  release_mem_region(seam->mem_start, seam->mem_end - seam->mem_start + 1);
-  kfree(seam);
+    switch()
+    {
+      case 0: //seam device
+        printk(KERN_ALERT "seam device platform driver removed\n");
+        iowrite32(0, seam->base_addr);
+        iounmap(seam->base_addr);
+        release_mem_region(seam->mem_start, seam->mem_end - seam->mem_start + 1);
+        kfree(seam);
+      break;
+      case 1: //dma device
+        printk(KERN_ALERT "dma platform driver removed\n");
+        iowrite32(0, dma->base_addr);
+        iounmap(dma->base_addr);
+        release_mem_region(dma->mem_start, dma->mem_end - dma->mem_start + 1);
+        kfree(dma);
+      break;
+      default:
+      printk(KERN_INFO "[REMOVE] Device FSM in illegal state. \n");
+      return -1;
+    }
 	printk(KERN_INFO "Succesfully removed driver\n");
   return 0;
 }
@@ -215,6 +237,7 @@ int seam_close(struct inode *pinode, struct file *pfile)
 #define BUFF_SIZE 1000
 int end_read = 0;
 int i = 0;
+int j = 0;
 
 ssize_t seam_read(struct file *pfile, char __user *buffer, size_t length, loff_t *offset)
 {
@@ -254,7 +277,7 @@ ssize_t seam_read(struct file *pfile, char __user *buffer, size_t length, loff_t
 
 ssize_t seam_write(struct file *pfile, const char __user *buffer, size_t length, loff_t *offset)
 {
-  //
+
 }
 
 //DMA FUNCTIONS
@@ -326,67 +349,59 @@ u32 dma_simple_write(dma_addr_t TxBufferPtr, u32 max_pkt_len, void __iomem *base
 //INIT FUNCTION
 static int __init seam_init(void)
 {
-  int i = 0;
-  int_cnt = 0;
-
   printk(KERN_INFO "seam_init: Initialize Module \"%s\"\n", DEVICE_NAME);
-	
-  if(alloc_chrdev_region(&my_dev_id, 0, 1, "seam_region"))   
+	if(alloc_chrdev_region(&my_dev_id, 0, 2, "seam_region"))   ////is 2 here ok????
   {
-    printk(KERN_ALERT "Failed CHRDEV!\n");
+    printk(KERN_ALERT "<1>Failed CHRDEV!.\n");
     return -1;
   }
-  printk(KERN_INFO "Successful CHRDEV!\n");
+  printk(KERN_INFO "Succ CHRDEV!.\n");
+  my_class = class_create(THIS_MODULE, "seam_class");
   
-  if((my_class = class_create(THIS_MODULE, "seam_class")) == NULL)
+  if (my_class == NULL)
   {
-    printk(KERN_ALERT "Failed to create class!\n");
+	  printk(KERN_ALERT "<1>Failed class create!.\n");
     goto fail_0;
   }
-  printk(KERN_INFO "Successfully created seam_class!\n");
-  if (device_create(my_class, NULL, MKDEV(MAJOR(my_dev_id),0), NULL, "seam") == NULL)
+  printk(KERN_INFO "Class created!.\n");
+    
+  
+  if (device_create(my_class, NULL, MKDEV(MAJOR(my_dev_id),0), NULL, "xlnx, seam") == NULL)
   {
+    printk(KERN_ERR "failed to create device seam\n");
     goto fail_1;
   }
+  printk(KERN_INFO "Device created - seam.\n");
 
-  printk(KERN_INFO "Device created.\n");
-
-  my_cdev = cdev_alloc();
-	my_cdev->ops = &my_fops;
-	my_cdev->owner = THIS_MODULE;
-
-  if (cdev_add(&my_cdev, my_dev_id, 1) == -1)
+  if (device_create(my_class, NULL, MKDEV(MAJOR(my_dev_id),1), NULL, "xlnx,dma") == NULL)
   {
-    goto fail_2;
+   printk(KERN_ERR "failed to create device dma\n");
+       goto fail_2;
   }
+   printk(KERN_INFO "device created - dma\n");
 
-  printk(KERN_INFO "Device init.\n");
-
-  tx_vir_buffer = dma_alloc_coherent(NULL, MAX_PKT_LEN, &tx_phy_buffer, GFP_DMA | GFP_KERNEL); //GFP_KERNEL
-  if(!tx_vir_buffer){
-    printk(KERN_ALERT "Could not allocate dma_alloc_coherent for img");
+  my_cdev = cdev_alloc();	
+  my_cdev->ops = &seam_operations;
+  my_cdev->owner = THIS_MODULE;
+  ret = cdev_add(my_cdev, my_dev_id, 1);
+  
+  if (cdev_add(my_cdev, my_dev_id, 2) == -1)
+  {
+    printk(KERN_ERR "seam_init: Failed to add cdev\n");
     goto fail_3;
   }
-  else
-  {
-    printk("dma_alloc_coherent success img\n");
-  }
-  for (i = 0; i < MAX_PKT_LEN/4;i++)
-  {
-    tx_vir_buffer[i] = 0x00000000;
-  }
-  printk(KERN_INFO "DMA memory reset.\n");
+  printk(KERN_INFO "seam Device init.\n");
+
   return platform_driver_register(&seam_driver);
 
   fail_3:
-    cdev_del(&my_cdev);
-  fail_2:
-    device_destroy(my_class, MKDEV(MAJOR(my_dev_id),0));
+	device_destroy(my_class, MKDEV(MAJOR(my_dev_id),1));
+  fail_3:
+	device_destroy(my_class, MKDEV(MAJOR(my_dev_id),0));
   fail_1:
-    class_destroy(my_class);
+	class_destroy(my_class);
   fail_0:
-    unregister_chrdev_region(my_dev_id, 1);
-
+	unregister_chrdev_region(my_dev_id, 1);
   return -1;
 }
 
@@ -395,6 +410,7 @@ static void __exit seam_exit(void)
 {
   platform_driver_unregister(&seam_driver);
   cdev_del(&my_cdev);
+  device_destroy(my_class, MKDEV(MAJOR(my_dev_id),1));
   device_destroy(my_class, MKDEV(MAJOR(my_dev_id),0));
   class_destroy(my_class);
   unregister_chrdev_region(my_dev_id, 1);

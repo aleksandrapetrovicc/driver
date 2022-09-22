@@ -32,6 +32,8 @@ MODULE_ALIAS("custom:seam");
 #define DEVICE_NAME "seam"
 #define DRIVER_NAME "seam_driver"
 #define MAX_PKT_LEN 640*480*4 ///how much do we need
+#define MAX_X 1000 //example
+#define MAX_Y 1000 //example
 /////adresses for registers
 
 // INFO
@@ -41,6 +43,7 @@ struct seam_info
 	unsigned long mem_start;
 	unsigned long mem_end;
 	void __iomem *base_addr;
+  int irq_num;
 };
 
 struct file_operations seam_operations = 
@@ -229,32 +232,30 @@ ssize_t seam_read(struct file *pfile, char __user *buffer, size_t length, loff_t
       end_read = 0;
       return 0;
     }
-
-    switch(minor)
-    {
-      case 0: //device seam
-        printk(KERN_INFO "Succesfully read from seam device.\n");
-        //*******************************/
-        //////////for our project
-        //len = scnprintf(buf, BUFF_SIZE, "nasi signali");
-        //*******************************/
-        if (copy_to_user(buffer, buf, len))
-        return -EFAULT;
-        end_read = 1;
-      break;
-      case 1: //device dma
-      break;
-      default:
-        printk(KERN_ERR "[READ] Invalid minor. \n");
-        end_read = 1;
-    }
+      printk(KERN_INFO "Succesfully read from seam device.\n");
+      //*******************************/
+      //////////for our project
+      //len = scnprintf(buf, BUFF_SIZE, "nasi signali");       //*******************************/
+      if (copy_to_user(buffer, buf, len))
+      return -EFAULT;
+      end_read = 1;
+      
     return len;
 }
 
-
+//////TO DO!!!!!!!
 ssize_t seam_write(struct file *pfile, const char __user *buffer, size_t length, loff_t *offset)
 {
-  //
+  char buffer[length+1];
+  unsigned int position=0,xpos=0,ypos=0,value=0; //should i use x and y pos separately????
+  i = copy_from_user(buffer, buf, length);
+
+ /* if (copy_from_user(buf, buffer, length))
+  {
+    return -EFAULT;
+  }not sure if i need this*/
+
+  buffer[length] = '\0';
 }
 
 //DMA FUNCTIONS
@@ -326,7 +327,7 @@ u32 dma_simple_write(dma_addr_t TxBufferPtr, u32 max_pkt_len, void __iomem *base
 //INIT FUNCTION
 static int __init seam_init(void)
 {
-  int i = 0;
+  //int i = 0;
   int_cnt = 0;
 
   printk(KERN_INFO "seam_init: Initialize Module \"%s\"\n", DEVICE_NAME);

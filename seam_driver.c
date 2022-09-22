@@ -36,6 +36,23 @@ MODULE_ALIAS("custom:seam");
 #define MAX_Y 1000 //example
 /////adresses for registers
 
+// FUNCTIONS
+
+static int seam_probe(struct platform_device *pdev);
+static int seam_remove(struct platform_device *pdev);
+int seam_open(struct inode *pinode, struct file *pfile);
+int seam_close(struct inode *pinode, struct file *pfile);
+ssize_t seam_read(struct file *pfile, char __user *buffer, size_t length, loff_t *offset);
+ssize_t seam_write(struct file *pfile, const char __user *buffer, size_t length, loff_t *offset);
+static ssize_t seam_dma_mmap(struct file *f, struct vm_area_struct *vma_s);
+static int __init seam_init(void);
+static void __exit seam_exit(void);
+
+static irqreturn_t dma_isr(int irq,void*dev_id);
+int dma_init(void __iomem *base_address);
+u32 dma_simple_write(dma_addr_t TxBufferPtr, u32 max_pkt_len, void __iomem *base_address); // helper function, defined later
+
+
 // INFO
 
 struct seam_info 
@@ -46,13 +63,13 @@ struct seam_info
   int irq_num;
 };
 
-struct file_operations seam_operations = 
-{  ///////////static?
-    .owner = THIS_MODULE,
+static struct file_operations seam_operations = 
+{
+  .owner = THIS_MODULE,
 	.open = seam_open,
+	.release = seam_close,
 	.read = seam_read,
 	.write = seam_write,
-	.release = seam_close,
   .mmap = seam_dma_mmap
 };
 
@@ -79,7 +96,7 @@ static struct seam_info *seam = NULL;
 static dev_t my_dev_id;
 static struct class *my_class;
 static struct device *my_device;
-static struct cdev *my_cdev;
+static struct cdev my_cdev;    ///////had * before
 static int int_cnt;
 
 dma_addr_t tx_phy_buffer;
@@ -87,21 +104,6 @@ u32 *tx_vir_buffer;
 
 MODULE_DEVICE_TABLE(of, seam_of_match);
 
-// FUNCTIONS
-
-static int seam_probe(struct platform_device *pdev);
-static int seam_remove(struct platform_device *pdev);
-int seam_open(struct inode *pinode, struct file *pfile);
-int seam_close(struct inode *pinode, struct file *pfile);
-ssize_t seam_read(struct file *pfile, char __user *buffer, size_t length, loff_t *offset);
-ssize_t seam_write(struct file *pfile, const char __user *buffer, size_t length, loff_t *offset);
-static ssize_t vga_dma_mmap(struct file *f, struct vm_area_struct *vma_s);
-static int __init seam_init(void);
-static void __exit seam_exit(void);
-
-static irqreturn_t dma_isr(int irq,void*dev_id);
-int dma_init(void __iomem *base_address);
-u32 dma_simple_write(dma_addr_t TxBufferPtr, u32 max_pkt_len, void __iomem *base_address); // helper function, defined later
 
 //PROBE
 static int seam_probe(struct platform_device *pdev) 
@@ -244,7 +246,7 @@ ssize_t seam_read(struct file *pfile, char __user *buffer, size_t length, loff_t
 }
 
 //////TO DO!!!!!!!
-ssize_t seam_write(struct file *pfile, const char __user *buffer, size_t length, loff_t *offset)
+ssize_t seam_write(struct file *pfile, const char __user *buf, size_t length, loff_t *offset)
 {
   char buffer[length+1];
   unsigned int position=0,xpos=0,ypos=0,value=0; //should i use x and y pos separately????
@@ -256,11 +258,15 @@ ssize_t seam_write(struct file *pfile, const char __user *buffer, size_t length,
   }not sure if i need this*/
 
   buffer[length] = '\0';
+
+  /////function
+  
+  return length;
 }
 
 //DMA FUNCTIONS
 
-static ssize_t vga_dma_mmap(struct file *f, struct vm_area_struct *vma_s)
+static ssize_t seam_dma_mmap(struct file *f, struct vm_area_struct *vma_s)
 {
   int ret = 0;
   long length = vma_s->vm_end - vma_s->vm_start;
@@ -283,12 +289,12 @@ static irqreturn_t dma_isr(int irq,void*dev_id)
 {
   u32 IrqStatus;
   //čitanje irq_status bita iz MM2S_DMASR registra
-  IrqStatus = ioread32(vp->base_addr + 4);
+  IrqStatus = ioread32(seam->base_addr + 4);
   //clear irq_status bita u MM2S_DMASR registru. (To se radi
   //upisivanjem logičke 1 na 13. bit u MM2S_DMASR (IOC_Irq).
-  iowrite32(IrqStatus | 0x00007000, vp->base_addr + 4);
+  iowrite32(IrqStatus | 0x00007000, seam->base_addr + 4);
   /*Slanje transakcije*/
-  dma_simple_write(tx_phy_buffer, MAX_PKT_LEN, vp->base_addr);
+  dma_simple_write(tx_phy_buffer, MAX_PKT_LEN, seam->base_addr);
   return IRQ_HANDLED;;
 }
 
@@ -327,12 +333,11 @@ u32 dma_simple_write(dma_addr_t TxBufferPtr, u32 max_pkt_len, void __iomem *base
 //INIT FUNCTION
 static int __init seam_init(void)
 {
-  //int i = 0;
   int_cnt = 0;
 
   printk(KERN_INFO "seam_init: Initialize Module \"%s\"\n", DEVICE_NAME);
 	
-  if(alloc_chrdev_region(&my_dev_id, 0, 1, "seam_region"))   
+  if(alloc_chrdev_region(&my_dev_id, 0, 1, "seam_region")<0)   
   {
     printk(KERN_ALERT "Failed CHRDEV!\n");
     return -1;
@@ -352,9 +357,10 @@ static int __init seam_init(void)
 
   printk(KERN_INFO "Device created.\n");
 
-  my_cdev = cdev_alloc();
-	my_cdev->ops = &my_fops;
-	my_cdev->owner = THIS_MODULE;
+  //my_cdev = cdev_alloc();
+	//my_cdev->ops = &seam_operations;
+	//my_cdev->owner = THIS_MODULE;
+  cdev_init(&my_cdev, &seam_operations);
 
   if (cdev_add(&my_cdev, my_dev_id, 1) == -1)
   {
@@ -364,9 +370,10 @@ static int __init seam_init(void)
   printk(KERN_INFO "Device init.\n");
 
   tx_vir_buffer = dma_alloc_coherent(NULL, MAX_PKT_LEN, &tx_phy_buffer, GFP_DMA | GFP_KERNEL); //GFP_KERNEL
-  if(!tx_vir_buffer){
+  if(!tx_vir_buffer)
+  {
     printk(KERN_ALERT "Could not allocate dma_alloc_coherent for img");
-    goto fail_3;
+    goto fail_3;  
   }
   else
   {

@@ -18,11 +18,8 @@
 #include <linux/fs.h>
 #include <linux/device.h>
 #include <linux/cdev.h>
-
 #include <linux/uaccess.h>
-#include <linux/delay.h>
-
-#include <linux/dma-mapping.h> 
+#include <linux/dma-mapping.h>
 #include <linux/mm.h>
 
 MODULE_LICENSE("GPL");
@@ -50,18 +47,7 @@ static void __exit seam_exit(void);
 
 static irqreturn_t dma_isr(int irq,void*dev_id);
 int dma_init(void __iomem *base_address);
-u32 dma_simple_write(dma_addr_t TxBufferPtr, u32 max_pkt_len, void __iomem *base_address); // helper function, defined later
-
-
-// INFO
-
-struct seam_info 
-{
-	unsigned long mem_start;
-	unsigned long mem_end;
-	void __iomem *base_addr;
-  int irq_num;
-};
+u32 dma_simple_write(dma_addr_t TxBufferPtr, u32 max_pkt_len, void __iomem *base_address);
 
 static struct file_operations seam_operations = 
 {
@@ -69,8 +55,8 @@ static struct file_operations seam_operations =
 	.open = seam_open,
 	.release = seam_close,
 	.read = seam_read,
-	.write = seam_write,
-  .mmap = seam_dma_mmap
+	.write = seam_write//,
+  //.mmap = seam_dma_mmap //////keeps reporting error here
 };
 
 static struct of_device_id seam_of_match[] = 
@@ -92,13 +78,22 @@ static struct platform_driver seam_driver =
 	.remove		= seam_remove,
 };
 
+// INFO
+
+struct seam_info 
+{
+	unsigned long mem_start;
+	unsigned long mem_end;
+	void __iomem *base_addr;
+  int irq_num;
+};
+
 static struct seam_info *seam = NULL;   
 static dev_t my_dev_id;
 static struct class *my_class;
 static struct device *my_device;
 static struct cdev my_cdev;    ///////had * before
 static int int_cnt;
-
 dma_addr_t tx_phy_buffer;
 u32 *tx_vir_buffer;
 

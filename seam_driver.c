@@ -35,8 +35,7 @@ MODULE_ALIAS("custom:seam");
 #define COLSIZE     0x00
 #define ROWSIZE     0x04
 #define START       0x08
-#define CITANJE1    0x10//exmpl
-#define CITANJE2    0x14//exmpl
+#define READY       0x12 ///here?
 // FUNCTIONS
 
 static int seam_probe(struct platform_device *pdev);
@@ -54,6 +53,7 @@ int dma_init(void __iomem *base_address);
 u32 dma_simple_write(dma_addr_t TxBufferPtr, u32 max_pkt_len, void __iomem *base_address);
 
 int colsize, rowsize, start;
+int ready;
 
 static struct file_operations seam_operations = 
 {
@@ -175,7 +175,7 @@ static int seam_probe(struct platform_device *pdev)
   dma_init(seam->base_addr);
   dma_simple_write(tx_phy_buffer, MAX_PKT_LEN, seam->base_addr);
   
-  printk("probing done");
+  printk("Probing done.\n");
   error2:
   release_mem_region(seam->mem_start, seam->mem_end - seam->mem_start + 1);
   error1:
@@ -222,8 +222,6 @@ ssize_t seam_read(struct file *pfile, char __user *buffer, size_t length, loff_t
 {
   char buf[BUFF_SIZE];
   long int len = 0;
-  u32 val;
-  //int minor = MINOR(pfile->f_inode->i_rdev);
 
   printk(KERN_INFO "i = %d, len = %ld, end_read = %d\n", i, len, end_read);
   if (end_read == 1)
@@ -232,11 +230,10 @@ ssize_t seam_read(struct file *pfile, char __user *buffer, size_t length, loff_t
       return 0;
     }
       printk(KERN_INFO "Succesfully read from seam device.\n");
-      //*******************************/
-      //////////for our project
-      //len = scnprintf(buf, BUFF_SIZE, "nasi signali");       //*******************************/
+      //*******************************/nisam dodala ready
+      len = scnprintf(buf, BUFF_SIZE, "colsize = %d, rowsize = %d, start = %d", colsize, rowsize, start);      
       if (copy_to_user(buffer, buf, len))
-      return -EFAULT;
+        return -EFAULT;
       end_read = 1;
       
     return len;

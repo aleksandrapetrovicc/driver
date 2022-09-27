@@ -32,7 +32,11 @@ MODULE_ALIAS("custom:seam");
 #define MAX_X 1000 //example
 #define MAX_Y 1000 //example
 /////adresses for registers
-
+#define COLSIZE     0x00
+#define ROWSIZE     0x04
+#define START       0x08
+#define CITANJE1    0x10//exmpl
+#define CITANJE2    0x14//exmpl
 // FUNCTIONS
 
 static int seam_probe(struct platform_device *pdev);
@@ -49,20 +53,20 @@ static irqreturn_t dma_isr(int irq,void*dev_id);
 int dma_init(void __iomem *base_address);
 u32 dma_simple_write(dma_addr_t TxBufferPtr, u32 max_pkt_len, void __iomem *base_address);
 
+int colsize, rowsize, start;
+
 static struct file_operations seam_operations = 
 {
   .owner = THIS_MODULE,
 	.open = seam_open,
 	.release = seam_close,
 	.read = seam_read,
-	.write = seam_write//,
-  //.mmap = seam_dma_mmap //////keeps reporting error here
+	.write = seam_write
 };
 
 static struct of_device_id seam_of_match[] = 
 {
-	{ .compatible = "xlnx,seam", },
-	{ .compatible = "xlnx,dma", },  ////////////check this
+	{ .compatible = "xlnx,seam", }, ////////////check this
 	{ /* end of list */ },
 };
 
@@ -91,8 +95,7 @@ struct seam_info
 static struct seam_info *seam = NULL;   
 static dev_t my_dev_id;
 static struct class *my_class;
-static struct device *my_device;
-static struct cdev my_cdev;    ///////had * before
+static struct cdev my_cdev;
 static int int_cnt;
 dma_addr_t tx_phy_buffer;
 u32 *tx_vir_buffer;
@@ -206,12 +209,11 @@ int seam_open(struct inode *pinode, struct file *pfile)
 
 int seam_close(struct inode *pinode, struct file *pfile) 
 {
-	printk(KERN_INFO "Succesfully closed SEAM\n");
-	return 0;
+  printk(KERN_INFO "Succesfully closed SEAM\n");
+  return 0;
 }
 
-//READ AND WRITE FUNCTIONS*********************
-//THIS MIGH BE CHANGED
+//READ FUNCTION
 #define BUFF_SIZE 1000
 int end_read = 0;
 int i = 0;
@@ -221,7 +223,7 @@ ssize_t seam_read(struct file *pfile, char __user *buffer, size_t length, loff_t
   char buf[BUFF_SIZE];
   long int len = 0;
   u32 val;
-  int minor = MINOR(pfile->f_inode->i_rdev);
+  //int minor = MINOR(pfile->f_inode->i_rdev);
 
   printk(KERN_INFO "i = %d, len = %ld, end_read = %d\n", i, len, end_read);
   if (end_read == 1)
@@ -240,22 +242,23 @@ ssize_t seam_read(struct file *pfile, char __user *buffer, size_t length, loff_t
     return len;
 }
 
-//////TO DO!!!!!!!
-ssize_t seam_write(struct file *pfile, const char __user *buf, size_t length, loff_t *offset)
+//WRITE FUNCTION
+ssize_t seam_write(struct file *pfile, const char __user *buffer, size_t length, loff_t *offset)
 {
-  char buffer[length+1];
-  unsigned int position=0,xpos=0,ypos=0,value=0; //should i use x and y pos separately????
-  i = copy_from_user(buffer, buf, length);
+  char buf[length+1];
+  i = copy_from_user(buf, buffer, length);
 
- /* if (copy_from_user(buf, buffer, length))
-  {
+  if (i)
     return -EFAULT;
-  }not sure if i need this*/
+  buf[length] = '\0';
 
-  buffer[length] = '\0';
+  sscanf(buf, "%d", &colsize);
+  printk(KERN_INFO "%d, %d, %d\n", colsize, rowsize, start);
+  iowrite32(colsize, seam->base_addr+COLSIZE);
+  iowrite32(rowsize, seam->base_addr+ROWSIZE);
+  iowrite32(start, seam->base_addr+start);
+  printk(KERN_INFO, "Sucessfully wrote into seam device. %d, %d, %d\n", colsize, rowsize, start);
 
-  /////function
-  
   return length;
 }
 

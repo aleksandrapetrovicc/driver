@@ -109,17 +109,17 @@ static int seam_probe(struct platform_device *pdev)
   struct resource *r_mem;
   int rc = 0;
 
-  printk(KERN_INFO "Probing\n");
+  printk(KERN_INFO "Probing sean.\n");
 
   r_mem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
   if (!r_mem) 
   {
-    printk(KERN_ALERT "Invalid address\n");
+    printk(KERN_ALERT "Invalid address for seam.\n");
     return -ENODEV;
   }
   else
   {
-    printk(KERN_INFO "Starting probing.\n");
+    printk(KERN_INFO "Starting probing seam.\n");
   }
   seam = (struct seam_info *) kmalloc(sizeof(struct seam_info), GFP_KERNEL);
   if (!seam) 
@@ -129,14 +129,14 @@ static int seam_probe(struct platform_device *pdev)
   }
   else
   {
-    printk("Sucessful allocation.\n");
+    printk("Sucessful allocation of seam device.\n");
   }
   seam->mem_start = r_mem->start;
   seam->mem_end = r_mem->end;
 
   if (!request_mem_region(seam->mem_start, seam->mem_end - seam->mem_start + 1, DRIVER_NAME))
   {
-    printk(KERN_ALERT "Couldn't lock memory region at %p\n",(void *)seam->mem_start);
+    printk(KERN_ALERT "Couldn't lock memory region at %p for seam device.\n",(void *)seam->mem_start);
     rc = -EBUSY;
     goto error1;
   }
@@ -149,13 +149,13 @@ static int seam_probe(struct platform_device *pdev)
   seam->base_addr = ioremap(seam->mem_start, seam->mem_end - seam->mem_start + 1);
   if (!seam->base_addr)
   {
-    printk(KERN_ALERT "Could not allocate iomem\n");
+    printk(KERN_ALERT "Could not allocate iomem for seam\n");
     rc = -EIO;
     goto error2;
   }
   else
   {
-    printk(KERN_INFO "Ioremap was a success\n");
+    printk(KERN_INFO "Ioremap was a success for seam\n");
   }
 
   seam->irq_num = platform_get_irq(pdev, 0);
@@ -163,19 +163,19 @@ static int seam_probe(struct platform_device *pdev)
   
   if (request_irq(seam->irq_num, dma_isr, 0, DEVICE_NAME, NULL))
   {
-    printk(KERN_ERR "Cannot register IRQ %d\n", seam->irq_num);
+    printk(KERN_ERR "Cannot register IRQ %d for seam\n", seam->irq_num);
     return -EIO;
   }
   else 
   {
-    printk(KERN_INFO "Registered IRQ %d\n", seam->irq_num);
+    printk(KERN_INFO "Registered IRQ %d for seam\n", seam->irq_num);
   }
 
   //dma init
   dma_init(seam->base_addr);
   dma_simple_write(tx_phy_buffer, MAX_PKT_LEN, seam->base_addr);
   
-  printk("Probing done.\n");
+  printk("Probing done for seam.\n");
   error2:
   release_mem_region(seam->mem_start, seam->mem_end - seam->mem_start + 1);
   error1:
@@ -193,7 +193,7 @@ static int seam_remove(struct platform_device *pdev)
   free_irq(seam->irq_num, NULL);
   release_mem_region(seam->mem_start, seam->mem_end - seam->mem_start + 1);
   kfree(seam);
-	printk(KERN_INFO "Succesfully removed driver\n");
+	printk(KERN_INFO "Succesfully removed seam driver\n");
   return 0;
 }
 
@@ -220,20 +220,22 @@ int i = 0;
 
 ssize_t seam_read(struct file *pfile, char __user *buffer, size_t length, loff_t *offset)
 {
+  
   char buf[BUFF_SIZE];
   long int len = 0;
-
+/*
   printk(KERN_INFO "i = %d, len = %ld, end_read = %d\n", i, len, end_read);
   if (end_read == 1)
     {
       end_read = 0;
       return 0;
     }
+    */
       printk(KERN_INFO "Succesfully read from seam device.\n");
-      //*******************************/nisam dodala ready
-      len = scnprintf(buf, BUFF_SIZE, "colsize = %d, rowsize = %d, start = %d", colsize, rowsize, start);      
-      if (copy_to_user(buffer, buf, len))
-        return -EFAULT;
+      
+    //  len = scnprintf(buf, BUFF_SIZE, "colsize = %d, rowsize = %d, start = %d", colsize, rowsize, start);      //add ready 
+  //    if (copy_to_user(buffer, buf, len))
+  //      return -EFAULT;
       end_read = 1;
       
     return len;
@@ -248,14 +250,14 @@ ssize_t seam_write(struct file *pfile, const char __user *buffer, size_t length,
   if (i)
     return -EFAULT;
   buf[length] = '\0';
-
+/*
   sscanf(buf, "%d", &colsize);
   printk(KERN_INFO "%d, %d, %d\n", colsize, rowsize, start);
   iowrite32(colsize, seam->base_addr+COLSIZE);
   iowrite32(rowsize, seam->base_addr+ROWSIZE);
   iowrite32(start, seam->base_addr+start);
   printk(KERN_INFO, "Sucessfully wrote into seam device. %d, %d, %d\n", colsize, rowsize, start);
-
+*/
   return length;
 }
 
@@ -269,12 +271,12 @@ static ssize_t seam_dma_mmap(struct file *f, struct vm_area_struct *vma_s)
   if(length > MAX_PKT_LEN)
   {
     return -EIO;
-    printk(KERN_ERR "Trying to mmap more space than it's allocated\n");
+    printk(KERN_ERR "Trying to mmap more space than it's allocated for seam\n");
   }
   ret = dma_mmap_coherent(NULL, vma_s, tx_vir_buffer, tx_phy_buffer, length);
   if(ret<0)
   {
-    printk(KERN_ERR "memory map failed\n");
+    printk(KERN_ERR "memory map failed for seam\n");
     return ret;
   }
   return 0;
@@ -334,14 +336,14 @@ static int __init seam_init(void)
 	
   if(alloc_chrdev_region(&my_dev_id, 0, 1, "seam_region")<0)   
   {
-    printk(KERN_ALERT "Failed CHRDEV!\n");
+    printk(KERN_ALERT "Failed CHRDEV for seam!\n");
     return -1;
   }
-  printk(KERN_INFO "Successful CHRDEV!\n");
+  printk(KERN_INFO "Successful CHRDEV for seam!\n");
   
   if((my_class = class_create(THIS_MODULE, "seam_class")) == NULL)
   {
-    printk(KERN_ALERT "Failed to create class!\n");
+    printk(KERN_ALERT "Failed to create seam class!\n");
     goto fail_0;
   }
   printk(KERN_INFO "Successfully created seam_class!\n");
@@ -350,7 +352,7 @@ static int __init seam_init(void)
     goto fail_1;
   }
 
-  printk(KERN_INFO "Device created.\n");
+  printk(KERN_INFO "Seam device created.\n");
 
   //my_cdev = cdev_alloc();
 	//my_cdev->ops = &seam_operations;
@@ -362,8 +364,8 @@ static int __init seam_init(void)
     goto fail_2;
   }
 
-  printk(KERN_INFO "Device init.\n");
-
+  printk(KERN_INFO "Seam device init.\n");
+///DIFERENCE STARTS HERE*************
   tx_vir_buffer = dma_alloc_coherent(NULL, MAX_PKT_LEN, &tx_phy_buffer, GFP_DMA | GFP_KERNEL); //GFP_KERNEL
   if(!tx_vir_buffer)
   {
@@ -379,6 +381,8 @@ static int __init seam_init(void)
     tx_vir_buffer[i] = 0x00000000;
   }
   printk(KERN_INFO "DMA memory reset.\n");
+
+  ////DIFERENCE ENDS HERE************
   return platform_driver_register(&seam_driver);
 
   fail_3:

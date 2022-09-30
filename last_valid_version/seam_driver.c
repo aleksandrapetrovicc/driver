@@ -1,24 +1,24 @@
 #include <linux/kernel.h>
-#include <linux/init.h>
+#include <linux/string.h>
 #include <linux/module.h>
-#include <linux/interrupt.h>
-#include <linux/irq.h>
-#include <linux/platform_device.h>
-#include <linux/slab.h>
-#include <linux/io.h>
-#include <linux/of_address.h>
-#include <linux/of_device.h>
-#include <linux/of_platform.h>
-#include <linux/version.h>
-#include <linux/types.h>
-#include <linux/kdev_t.h>
+#include <linux/init.h>
 #include <linux/fs.h>
-#include <linux/device.h>
+#include <linux/types.h>
 #include <linux/cdev.h>
+#include <linux/kdev_t.h>
 #include <linux/uaccess.h>
-#include <linux/delay.h>
-#include <linux/dma-mapping.h>
-#include <linux/mm.h>
+#include <linux/errno.h>
+#include <linux/device.h>
+
+#include <linux/io.h> //iowrite ioread
+#include <linux/slab.h>//kmalloc kfree
+#include <linux/platform_device.h>//platform driver
+#include <linux/of.h>//of_match_table
+#include <linux/ioport.h>//ioremap
+
+#include <linux/dma-mapping.h>  //dma access
+#include <linux/mm.h>  //dma access
+#include <linux/interrupt.h>  //interrupt handlers
 
 MODULE_LICENSE("Dual BSD/GPL");
 MODULE_AUTHOR ("g06-2022");
@@ -49,7 +49,7 @@ static int seam_open      (struct inode *pinode, struct file *pfile);
 static int seam_close     (struct inode *pinode, struct file *pfile);
 static ssize_t seam_read  (struct file *pfile, char __user *buffer, size_t length, loff_t *offset);
 static ssize_t seam_write (struct file *pfile, const char __user *buffer, size_t length, loff_t *offset);
-//static ssize_t seam_dma_mmap(struct file *f, struct vm_area_struct *vma_s);
+static ssize_t seam_dma_mmap(struct file *f, struct vm_area_struct *vma_s);
 
 static int  __init seam_init(void);
 static void __exit seam_exit(void);
@@ -97,6 +97,7 @@ struct file_operations my_fops =
 	.read    = seam_read,
 	.write   = seam_write,
 	.release = seam_close,
+	//.mmap = seam_dma_mmap
 };
 
 // ------------------------------------------
@@ -150,18 +151,18 @@ static int seam_probe(struct platform_device *pdev)
 	seam->irq_num = platform_get_irq(pdev, 0);
 	if(!seam->irq_num)
 	{
-		printk(KERN_ERR "vga_dma_probe: Could not get IRQ resource\n");
+		printk(KERN_ERR "seam_dma_probe: Could not get IRQ resource\n");
 		rc = -ENODEV;
 		goto error2;
 	}
 
 	if (request_irq(seam->irq_num, dma_isr, 0, DEVICE_NAME, NULL)) {
-		printk(KERN_ERR "vga_dma_probe: Could not register IRQ %d\n", seam->irq_num);
+		printk(KERN_ERR "seam_dma_probe: Could not register IRQ %d\n", seam->irq_num);
 		return -EIO;
 		goto error3;
 	}
 	else {
-		printk(KERN_INFO "vga_dma_probe: Registered IRQ %d\n", seam->irq_num);
+		printk(KERN_INFO "seam_dma_probe: Registered IRQ %d\n", seam->irq_num);
 	}
 
 	//INIT DMA 
@@ -298,6 +299,29 @@ ssize_t seam_write(struct file *pfile, const char __user *buffer, size_t length,
   return length;
 }
 
+static ssize_t seam_dma_mmap(struct file *f, struct vm_area_struct *vma_s)
+{
+	int ret = 0;
+	long length = vma_s->vm_end - vma_s->vm_start;
+
+	printk(KERN_INFO "DMA TX Buffer is being memory mapped\n");
+
+	if(length > MAX_PKT_LEN)
+	{
+		return -EIO;
+		printk(KERN_ERR "Trying to mmap more space than it's allocated\n");
+	}
+
+	ret = dma_mmap_coherent(NULL, vma_s, tx_vir_buffer, tx_phy_buffer, length);
+	if(ret<0)
+	{
+		printk(KERN_ERR "memory map failed\n");
+		return ret;
+	}
+	return 0;
+}
+
+
 /****************************************************/
 // IMPLEMENTATION OF DMA related functions
 
@@ -357,7 +381,7 @@ static int __init seam_init(void)
    printk(KERN_INFO "\n");
    printk(KERN_INFO "SEAM driver starting insmod.\n");
 
-   if (alloc_chrdev_region(&my_dev_id, 0, 3, "seam_region") < 0){  ////is 3 right number????
+   if (alloc_chrdev_region(&my_dev_id, 0, 1, "seam_region") < 0){  ////is 1 right number????
       printk(KERN_ERR "failed to register char device\n");
       return -1;
    }
@@ -380,7 +404,7 @@ static int __init seam_init(void)
 	my_cdev->ops = &my_fops;
 	my_cdev->owner = THIS_MODULE;
 
-	if (cdev_add(my_cdev, my_dev_id, 3) == -1)  ///is 3 right number????
+	if (cdev_add(my_cdev, my_dev_id, 1) == -1)  ///is 1 right number????
 	{
       printk(KERN_ERR "failed to add cdev\n");
       goto fail_2;
@@ -413,7 +437,7 @@ static int __init seam_init(void)
    // fail_3:
      // cdev_del(my_cdev);
     fail_2:
-     device_destroy(my_class, MKDEV(MAJOR(my_dev_id),2));  ////is 2 right number????
+     device_destroy(my_class, MKDEV(MAJOR(my_dev_id),0));  ////is 0 right number????
     fail_1:
       class_destroy(my_class);
    fail_0:

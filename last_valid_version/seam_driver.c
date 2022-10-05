@@ -159,11 +159,11 @@ static int seam_probe(struct platform_device *pdev)
 	else {
 		printk(KERN_INFO "seam_dma_probe: Registered IRQ %d\n", seam->irq_num);
 	}
-/*
+
 	//INIT DMA 
 	dma_init(seam->base_addr);
 	dma_simple_write(tx_phy_buffer, MAX_PKT_LEN, seam->base_addr); // helper function, defined later
-*/
+
       printk(KERN_INFO "[PROBE]: Finished probing seam.\n");
       return 0;
 
@@ -408,9 +408,9 @@ static int __init seam_init(void)
   for (i = 0; i < MAX_PKT_LEN/4;i++)
   {
     tx_vir_buffer[i] = 0x00000000;
-  }*/
-  printk(KERN_INFO "[INIT 2 ENDS] DMA memory reset.\n");
 
+  printk(KERN_INFO "[INIT 2 ENDS] DMA memory reset.\n");
+}*/
    return platform_driver_register(&my_driver);
 
     fail_3:
